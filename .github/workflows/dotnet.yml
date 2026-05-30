@@ -18,13 +18,17 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4 # 🎯 升級至 v4
+
     - name: Setup .NET
-      uses: actions/setup-dotnet@v3
+      uses: actions/setup-dotnet@v4 # 🎯 升級至 v4
       with:
-        dotnet-version: 8.0.x
+        dotnet-version: 10.0.x # 🎯 升級至 .NET 10
+        dotnet-quality: 'preview' # 🎯 開啟預覽版通道
+
     - name: Restore
       run: dotnet restore
+
     - name: Build
       run: dotnet build ${{ env.PROJECT_PATH }} -c Release -o ${{ env.OUTPUT_PATH }}
 
@@ -34,20 +38,26 @@ jobs:
     runs-on: ubuntu-latest
     needs: build
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4 # 🎯 升級至 v4
+
     - name: Setup .NET
-      uses: actions/setup-dotnet@v3
+      uses: actions/setup-dotnet@v4 # 🎯 升級至 v4
       with:
-        dotnet-version: 8.0.x
+        dotnet-version: 10.0.x # 🎯 升級至 .NET 10
+        dotnet-quality: 'preview' # 🎯 開啟預覽版通道
+
     - name: Restore
       run: dotnet restore
+
     - name: Build
       run: dotnet build ${{ env.PROJECT_PATH }} -c Release -o ${{ env.OUTPUT_PATH }}
+
     - name: Zip
       run: |
         cd ${{ env.OUTPUT_PATH }}
         # Crear el zip con los archivos de la compilación
         zip -r ../${{ env.PROJECT_NAME }}.zip .
+
     - name: AutomaticAds
       uses: ncipollo/release-action@v1.12.0
       with:
