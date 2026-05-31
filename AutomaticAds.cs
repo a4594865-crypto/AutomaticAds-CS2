@@ -3,7 +3,7 @@ using CounterStrikeSharp.API.Core;
 using CounterStrikeSharp.API.Core.Attributes;
 using CounterStrikeSharp.API.Modules.Admin;
 using CounterStrikeSharp.API.Core.Attributes.Registration;
-using System.Threading.Tasks; // ⚖️ 針對 .NET 10 修改：必須引入非同步 Task 核心
+using System.Threading.Tasks;
 
 using AutomaticAds.Config;
 using AutomaticAds.Config.Models;
@@ -13,7 +13,7 @@ using AutomaticAds.Utils;
 
 namespace AutomaticAds;
 
-[MinimumApiVersion(369)] // ✅ 針對 .NET 10 修改：採用官方最新 API 369 限制
+[MinimumApiVersion(369)]
 public class AutomaticAdsBase : BasePlugin, IPluginConfig<BaseConfigs>
 {
     public override string ModuleName => "AutomaticAds";
@@ -119,7 +119,6 @@ public class AutomaticAdsBase : BasePlugin, IPluginConfig<BaseConfigs>
     {
         AddCommand("ads_reload", "Reloads the AutomaticAds plugin configuration.", (player, commandInfo) =>
         {
-            // ⚡ 針對 .NET 10 修改：模式匹配語法優化
             if (player is null || commandInfo is null) 
                 return;
 
@@ -320,7 +319,6 @@ public class AutomaticAdsBase : BasePlugin, IPluginConfig<BaseConfigs>
 
         if (Config.EnableJoinLeaveMessages || Config.UseMultiLang)
         {
-            // ⚡ 針對 .NET 10 修改：使用丟棄運算子配合 Task 背景非同步運作，杜絕連線卡頓
             _ = HandlePlayerConnectWithCountryInfoAsync(player); 
         }
         else
@@ -331,7 +329,6 @@ public class AutomaticAdsBase : BasePlugin, IPluginConfig<BaseConfigs>
         return HookResult.Continue;
     }
 
-    // ⚡ 針對 .NET 10 修改：將 void 改為 Task，加上防禦網，100% 杜絕非同步地理查詢逾時導致的伺服器 Crash 靈異現象
     private async Task HandlePlayerConnectWithCountryInfoAsync(CCSPlayerController player)
     {
         try
