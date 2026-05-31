@@ -3,6 +3,7 @@ using CounterStrikeSharp.API.Core;
 using CounterStrikeSharp.API.Core.Attributes;
 using CounterStrikeSharp.API.Modules.Admin;
 using CounterStrikeSharp.API.Core.Attributes.Registration;
+using System.Threading.Tasks; // ⚖️ 新增：管理最新的非同步 Task
 
 using AutomaticAds.Config;
 using AutomaticAds.Config.Models;
@@ -12,7 +13,7 @@ using AutomaticAds.Utils;
 
 namespace AutomaticAds;
 
-[MinimumApiVersion(342)]
+[MinimumApiVersion(369)] // ✅ 保留你修改的最新 API 版本限制
 public class AutomaticAdsBase : BasePlugin, IPluginConfig<BaseConfigs>
 {
     public override string ModuleName => "AutomaticAds";
@@ -118,7 +119,7 @@ public class AutomaticAdsBase : BasePlugin, IPluginConfig<BaseConfigs>
     {
         AddCommand("ads_reload", "Reloads the AutomaticAds plugin configuration.", (player, commandInfo) =>
         {
-            if (player == null || commandInfo == null)
+            if (player is null || commandInfo is null) // ⚡ .NET 現代化語法優化
                 return;
 
             if (!HasReloadPermission(player))
@@ -318,7 +319,8 @@ public class AutomaticAdsBase : BasePlugin, IPluginConfig<BaseConfigs>
 
         if (Config.EnableJoinLeaveMessages || Config.UseMultiLang)
         {
-            HandlePlayerConnectWithCountryInfo(player);
+            // ⚡ 這裡是非同步呼叫，放行交給 Task
+            _ = HandlePlayerConnectWithCountryInfoAsync(player); 
         }
         else
         {
@@ -328,7 +330,8 @@ public class AutomaticAdsBase : BasePlugin, IPluginConfig<BaseConfigs>
         return HookResult.Continue;
     }
 
-    private async void HandlePlayerConnectWithCountryInfo(CCSPlayerController player)
+    // ⚡ 【.NET 10 安全最佳化】將 void 改為 Task，並加上 Async 後綴，防止後台執行緒崩潰
+    private async Task HandlePlayerConnectWithCountryInfoAsync(CCSPlayerController player)
     {
         try
         {
@@ -390,7 +393,7 @@ public class AutomaticAdsBase : BasePlugin, IPluginConfig<BaseConfigs>
     [GameEventHandler]
     private HookResult OnPlayerDisconnectPre(EventPlayerDisconnect @event, GameEventInfo info)
     {
-        if (!Config.EnableJoinLeaveMessages || @event == null)
+        if (!Config.EnableJoinLeaveMessages || @event is null) // ⚡ 優化匹配
             return HookResult.Continue;
 
         info.DontBroadcast = true;
