@@ -415,27 +415,16 @@ public class AutomaticAdsBase : BasePlugin, IPluginConfig<BaseConfigs>
         return HookResult.Continue;
     }
 
-  [GameEventHandler(HookMode.Pre)]
-public HookResult OnPlayerDisconnect(EventPlayerDisconnect gameEvent, GameEventInfo info)
-{
-    var player = gameEvent.Userid;
-    
-    // 1. 安全檢查：確保玩家實體還在記憶體中，不是無效指針
-    if (player != null && player.IsValid && player.UserId.HasValue)
+    [GameEventHandler(HookMode.Pre)]
+    public HookResult OnPlayerDeath(EventPlayerDeath gameEvent, GameEventInfo info)
     {
-        int disconnectUserId = player.UserId.Value;
+        var player = gameEvent.Userid;
+        if (!player.IsValidPlayer())
+            return HookResult.Continue;
 
-        // 2.強制移除該玩家在 Manager 裡的所有快取紀錄（包含舊IP與國籍）
-        _playerManager?.RemovePlayer(disconnectUserId);
-        
-        // playerData?.Remove(disconnectUserId); 
+        _adService?.SendOnDeadAds(player);
+        return HookResult.Continue;
     }
-
-    // 3. 斷線邏輯繼續執行
-    _joinLeaveService?.OnPlayerDisconnect(player!);
-
-    return HookResult.Continue;
-}
 
     [GameEventHandler(HookMode.Post)]
     public HookResult OnPlayerDeathPost(EventPlayerDeath gameEvent, GameEventInfo info)
@@ -448,20 +437,30 @@ public HookResult OnPlayerDisconnect(EventPlayerDisconnect gameEvent, GameEventI
         return HookResult.Continue;
     }
 
-    [GameEventHandler]
-    public HookResult OnPlayerSpawn(EventPlayerSpawn @event, GameEventInfo info)
+    // 【架構優化】：改為 Pre（事前觸發），在玩家還沒被引擎抹除前，第一時間搶先執行清理
+    [GameEventHandler(HookMode.Pre)]
+    private HookResult OnPlayerDisconnect(EventPlayerDisconnect @event, GameEventInfo info)
     {
         var player = @event.Userid;
-        if (!player.IsValidPlayer())
-            return HookResult.Continue;
-
-        if (player!.UserId.HasValue)
+        
+        // 1. 三重安全檢查：確保玩家在記憶體和引擎底層的指針依然有效
+        if (player != null && player.IsValid && player.UserId.HasValue)
         {
-            int playerId = player.UserId.Value;
-            if (_centerHtmlIsOnDead.TryGetValue(playerId, out bool isOnDead) && isOnDead)
-            {
-                StopCenterHtmlMessage(player);
-            }
+            int disconnectUserId = player.UserId.Value;
+
+            // 2. 【核心根治】：強制用記憶體安全的 UID 移除該玩家在 Manager 裡的所有舊 IP 殘留
+            _playerManager?.RemovePlayer(disconnectUserId);
+        }
+
+        // 3. 讓原本官方其餘的斷線與快取釋放邏輯繼續執行
+        if (player.IsValidPlayer())
+        {
+            StopCenterHtmlMessage(player!);
+            _playerManager?.ClearPlayerCache(player!);
+            _joinLeaveService?.HandlePlayerLeave(player!);
+            _welcomeService?.OnPlayerDisconnect(player!);
+            _joinLeaveService?.OnPlayerDisconnect(player!);
+            _screenTextService?.OnPlayerDisconnect(player!);
         }
 
         return HookResult.Continue;
