@@ -415,16 +415,7 @@ public class AutomaticAdsBase : BasePlugin, IPluginConfig<BaseConfigs>
         return HookResult.Continue;
     }
 
-    [GameEventHandler(HookMode.Pre)]
-    public HookResult OnPlayerDeath(EventPlayerDeath gameEvent, GameEventInfo info)
-    {
-        var player = gameEvent.Userid;
-        if (!player.IsValidPlayer())
-            return HookResult.Continue;
-
-        _adService?.SendOnDeadAds(player);
-        return HookResult.Continue;
-    }
+ 
 
     [GameEventHandler(HookMode.Post)]
     public HookResult OnPlayerDeathPost(EventPlayerDeath gameEvent, GameEventInfo info)
@@ -463,6 +454,16 @@ public class AutomaticAdsBase : BasePlugin, IPluginConfig<BaseConfigs>
             _screenTextService?.OnPlayerDisconnect(player!);
         }
 
+        return HookResult.Continue;
+    }
+       [GameEventHandler(HookMode.Pre)]
+    public HookResult OnPlayerDeath(EventPlayerDeath gameEvent, GameEventInfo info)
+    {
+        var player = gameEvent.Userid;
+        if (!player.IsValidPlayer())
+            return HookResult.Continue;
+
+        _adService?.SendOnDeadAds(player);
         return HookResult.Continue;
     }
 
