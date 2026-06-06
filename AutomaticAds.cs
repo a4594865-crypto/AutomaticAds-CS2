@@ -415,7 +415,16 @@ public class AutomaticAdsBase : BasePlugin, IPluginConfig<BaseConfigs>
         return HookResult.Continue;
     }
 
- 
+    [GameEventHandler(HookMode.Pre)]
+    public HookResult OnPlayerDeath(EventPlayerDeath gameEvent, GameEventInfo info)
+    {
+        var player = gameEvent.Userid;
+        if (!player.IsValidPlayer())
+            return HookResult.Continue;
+
+        _adService?.SendOnDeadAds(player);
+        return HookResult.Continue;
+    }
 
     [GameEventHandler(HookMode.Post)]
     public HookResult OnPlayerDeathPost(EventPlayerDeath gameEvent, GameEventInfo info)
@@ -428,42 +437,22 @@ public class AutomaticAdsBase : BasePlugin, IPluginConfig<BaseConfigs>
         return HookResult.Continue;
     }
 
-    // 【架構優化】：改為 Pre（事前觸發），在玩家還沒被引擎抹除前，第一時間搶先執行清理
-    [GameEventHandler(HookMode.Pre)]
-    private HookResult OnPlayerDisconnect(EventPlayerDisconnect @event, GameEventInfo info)
+    [GameEventHandler]
+    public HookResult OnPlayerSpawn(EventPlayerSpawn @event, GameEventInfo info)
     {
         var player = @event.Userid;
-        
-        // 1. 三重安全檢查：確保玩家在記憶體和引擎底層的指針依然有效
-        if (player != null && player.IsValid && player.UserId.HasValue)
-        {
-            int disconnectUserId = player.UserId.Value;
-
-            // 2. 【核心根治】：強制用記憶體安全的 UID 移除該玩家在 Manager 裡的所有舊 IP 殘留
-            _playerManager?.RemovePlayer(disconnectUserId);
-        }
-
-        // 3. 讓原本官方其餘的斷線與快取釋放邏輯繼續執行
-        if (player.IsValidPlayer())
-        {
-            StopCenterHtmlMessage(player!);
-            _playerManager?.ClearPlayerCache(player!);
-            _joinLeaveService?.HandlePlayerLeave(player!);
-            _welcomeService?.OnPlayerDisconnect(player!);
-            _joinLeaveService?.OnPlayerDisconnect(player!);
-            _screenTextService?.OnPlayerDisconnect(player!);
-        }
-
-        return HookResult.Continue;
-    }
-       [GameEventHandler(HookMode.Pre)]
-    public HookResult OnPlayerDeath(EventPlayerDeath gameEvent, GameEventInfo info)
-    {
-        var player = gameEvent.Userid;
         if (!player.IsValidPlayer())
             return HookResult.Continue;
 
-        _adService?.SendOnDeadAds(player);
+        if (player!.UserId.HasValue)
+        {
+            int playerId = player.UserId.Value;
+            if (_centerHtmlIsOnDead.TryGetValue(playerId, out bool isOnDead) && isOnDead)
+            {
+                StopCenterHtmlMessage(player);
+            }
+        }
+
         return HookResult.Continue;
     }
 
