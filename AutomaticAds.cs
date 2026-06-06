@@ -3,7 +3,6 @@ using CounterStrikeSharp.API.Core;
 using CounterStrikeSharp.API.Core.Attributes;
 using CounterStrikeSharp.API.Modules.Admin;
 using CounterStrikeSharp.API.Core.Attributes.Registration;
-using System.Threading.Tasks;
 
 using AutomaticAds.Config;
 using AutomaticAds.Config.Models;
@@ -119,7 +118,7 @@ public class AutomaticAdsBase : BasePlugin, IPluginConfig<BaseConfigs>
     {
         AddCommand("ads_reload", "Reloads the AutomaticAds plugin configuration.", (player, commandInfo) =>
         {
-            if (player is null || commandInfo is null) 
+            if (player == null || commandInfo == null)
                 return;
 
             if (!HasReloadPermission(player))
@@ -319,7 +318,7 @@ public class AutomaticAdsBase : BasePlugin, IPluginConfig<BaseConfigs>
 
         if (Config.EnableJoinLeaveMessages || Config.UseMultiLang)
         {
-            _ = HandlePlayerConnectWithCountryInfoAsync(player); 
+            HandlePlayerConnectWithCountryInfo(player);
         }
         else
         {
@@ -329,7 +328,7 @@ public class AutomaticAdsBase : BasePlugin, IPluginConfig<BaseConfigs>
         return HookResult.Continue;
     }
 
-    private async Task HandlePlayerConnectWithCountryInfoAsync(CCSPlayerController player)
+    private async void HandlePlayerConnectWithCountryInfo(CCSPlayerController player)
     {
         try
         {
@@ -391,7 +390,7 @@ public class AutomaticAdsBase : BasePlugin, IPluginConfig<BaseConfigs>
     [GameEventHandler]
     private HookResult OnPlayerDisconnectPre(EventPlayerDisconnect @event, GameEventInfo info)
     {
-        if (!Config.EnableJoinLeaveMessages || @event is null) 
+        if (!Config.EnableJoinLeaveMessages || @event == null)
             return HookResult.Continue;
 
         info.DontBroadcast = true;
@@ -416,16 +415,27 @@ public class AutomaticAdsBase : BasePlugin, IPluginConfig<BaseConfigs>
         return HookResult.Continue;
     }
 
-    [GameEventHandler(HookMode.Pre)]
-    public HookResult OnPlayerDeath(EventPlayerDeath gameEvent, GameEventInfo info)
+  [GameEventHandler(HookMode.Pre)]
+public HookResult OnPlayerDisconnect(EventPlayerDisconnect gameEvent, GameEventInfo info)
+{
+    var player = gameEvent.Userid;
+    
+    // 1. 安全檢查：確保玩家實體還在記憶體中，不是無效指針
+    if (player != null && player.IsValid && player.UserId.HasValue)
     {
-        var player = gameEvent.Userid;
-        if (!player.IsValidPlayer())
-            return HookResult.Continue;
+        int disconnectUserId = player.UserId.Value;
 
-        _adService?.SendOnDeadAds(player);
-        return HookResult.Continue;
+        // 2.強制移除該玩家在 Manager 裡的所有快取紀錄（包含舊IP與國籍）
+        _playerManager?.RemovePlayer(disconnectUserId);
+        
+        // playerData?.Remove(disconnectUserId); 
     }
+
+    // 3. 斷線邏輯繼續執行
+    _joinLeaveService?.OnPlayerDisconnect(player!);
+
+    return HookResult.Continue;
+}
 
     [GameEventHandler(HookMode.Post)]
     public HookResult OnPlayerDeathPost(EventPlayerDeath gameEvent, GameEventInfo info)
