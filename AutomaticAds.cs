@@ -389,7 +389,7 @@ public class AutomaticAdsBase : BasePlugin, IPluginConfig<BaseConfigs>
         }
     }
 
-    // 【終極修復】：將原作者分散的 Pre 與 Post 斷線事件完美融合成單一方法，絕不重名報錯
+    // 【完美修正版】：不使用不存在的 RemovePlayer，改用原生 ClearPlayerCache
     [GameEventHandler(HookMode.Pre)]
     public HookResult OnPlayerDisconnect(EventPlayerDisconnect @event, GameEventInfo info)
     {
@@ -404,18 +404,14 @@ public class AutomaticAdsBase : BasePlugin, IPluginConfig<BaseConfigs>
 
         var player = @event.Userid;
         
-        // 2. 三重防禦安全檢查：搶在玩家被銷毀前，第一時間清空 VPN/IP 記憶體快取
-        if (player != null && player.IsValid && player.UserId.HasValue)
-        {
-            int disconnectUserId = player.UserId.Value;
-            _playerManager?.RemovePlayer(disconnectUserId);
-        }
-
-        // 3. 執行其餘官方內建服務的斷線資源釋放邏輯
+        // 2. 三重防禦安全檢查：搶在玩家被銷毀前（Pre 階段），人還活著、SteamID 絕對有效時，強效執行官方清除快取
         if (player != null && player.IsValidPlayer())
         {
-            StopCenterHtmlMessage(player!);
+            // 在人走之前，強行用活著的實體清除該玩家在 Manager 裡的舊 IP 殘留
             _playerManager?.ClearPlayerCache(player!);
+            
+            // 執行其餘官方內建服務的斷線資源釋放邏輯
+            StopCenterHtmlMessage(player!);
             _joinLeaveService?.HandlePlayerLeave(player!);
             _welcomeService?.OnPlayerDisconnect(player!);
             _joinLeaveService?.OnPlayerDisconnect(player!);
