@@ -102,8 +102,10 @@ public class AutomaticAdsBase : BasePlugin, IPluginConfig<BaseConfigs>
         RegisterListener<Listeners.OnTick>(OnTick);
 
         RegisterEventHandler<EventPlayerConnectFull>(OnPlayerFullConnect);
-        RegisterEventHandler<EventPlayerDisconnect>(OnPlayerDisconnect);
-        RegisterEventHandler<EventPlayerDisconnect>(OnPlayerDisconnectPre, HookMode.Pre);
+        
+        // 【優化對齊】：這裡只註冊這一個唯一的斷線處理函數
+        RegisterEventHandler<EventPlayerDisconnect>(OnPlayerDisconnect, HookMode.Pre);
+        
         RegisterEventHandler<EventPlayerDeath>(OnPlayerDeathPost, HookMode.Post);
         RegisterEventHandler<EventPlayerSpawn>(OnPlayerSpawn);
     }
@@ -387,30 +389,38 @@ public class AutomaticAdsBase : BasePlugin, IPluginConfig<BaseConfigs>
         }
     }
 
-    [GameEventHandler]
-    private HookResult OnPlayerDisconnectPre(EventPlayerDisconnect @event, GameEventInfo info)
+    // 【終極修復】：將原作者分散的 Pre 與 Post 斷線事件完美融合成單一方法，絕不重名報錯
+    [GameEventHandler(HookMode.Pre)]
+    public HookResult OnPlayerDisconnect(EventPlayerDisconnect @event, GameEventInfo info)
     {
-        if (!Config.EnableJoinLeaveMessages || @event == null)
+        if (@event == null)
             return HookResult.Continue;
 
-        info.DontBroadcast = true;
-        return HookResult.Continue;
-    }
+        // 1. 如果有開啟進退服訊息，阻斷官方預設的聊天室斷線公告
+        if (Config.EnableJoinLeaveMessages)
+        {
+            info.DontBroadcast = true;
+        }
 
-    [GameEventHandler]
-    private HookResult OnPlayerDisconnect(EventPlayerDisconnect @event, GameEventInfo info)
-    {
         var player = @event.Userid;
-        if (!player.IsValidPlayer())
-            return HookResult.Continue;
+        
+        // 2. 三重防禦安全檢查：搶在玩家被銷毀前，第一時間清空 VPN/IP 記憶體快取
+        if (player != null && player.IsValid && player.UserId.HasValue)
+        {
+            int disconnectUserId = player.UserId.Value;
+            _playerManager?.RemovePlayer(disconnectUserId);
+        }
 
-        StopCenterHtmlMessage(player!);
-
-        _playerManager?.ClearPlayerCache(player!);
-        _joinLeaveService?.HandlePlayerLeave(player!);
-        _welcomeService?.OnPlayerDisconnect(player!);
-        _joinLeaveService?.OnPlayerDisconnect(player!);
-        _screenTextService?.OnPlayerDisconnect(player!);
+        // 3. 執行其餘官方內建服務的斷線資源釋放邏輯
+        if (player != null && player.IsValidPlayer())
+        {
+            StopCenterHtmlMessage(player!);
+            _playerManager?.ClearPlayerCache(player!);
+            _joinLeaveService?.HandlePlayerLeave(player!);
+            _welcomeService?.OnPlayerDisconnect(player!);
+            _joinLeaveService?.OnPlayerDisconnect(player!);
+            _screenTextService?.OnPlayerDisconnect(player!);
+        }
 
         return HookResult.Continue;
     }
