@@ -81,41 +81,57 @@ public class WelcomeService
         try
         {
             string formattedPrefix = _messageFormatter.FormatMessage(_config.ChatPrefix);
-            string welcomeMessage;
-
-            if (_config.UseMultiLang)
+            
+            // 【架構優化】：改為異步兼容/確保國籍能正確更新的邏輯
+            Server.NextFrame(async () =>
             {
-                Models.PlayerInfo playerInfo;
-
-                if (_playerManager.NeedsCountryUpdate(player.SteamID))
+                try
                 {
-                    playerInfo = _playerManager.GetBasicPlayerInfo(player);
+                    if (!player.IsValidPlayer()) return;
+
+                    string welcomeMessage;
+
+                    if (_config.UseMultiLang)
+                    {
+                        Models.PlayerInfo playerInfo;
+
+                        // 修正：如果需要更新國家資訊，強迫它去撈取最新的 IP 國籍（不再偷懶讀舊快取）
+                        if (_playerManager.NeedsCountryUpdate(player.SteamID))
+                        {
+                            // 這裡我們修正為真正的非同步查詢，確保 VPN 切換能立刻抓到新 IP
+                            playerInfo = await _playerManager.GetOrCreatePlayerInfoAsync(player, null!); 
+                        }
+                        else
+                        {
+                            playerInfo = _playerManager.GetBasicPlayerInfo(player);
+                        }
+
+                        welcomeMessage = _messageFormatter.FormatWelcomeMessage(welcome, playerInfo, formattedPrefix);
+                    }
+                    else
+                    {
+                        var basicPlayerInfo = _playerManager.GetBasicPlayerInfo(player);
+                        basicPlayerInfo.CountryCode = Utils.Constants.ErrorMessages.Unknown;
+                        basicPlayerInfo.CountryName = Utils.Constants.ErrorMessages.Unknown;
+
+                        welcomeMessage = _messageFormatter.FormatWelcomeMessage(welcome, basicPlayerInfo, formattedPrefix);
+                    }
+
+                    if (!string.IsNullOrWhiteSpace(welcomeMessage))
+                    {
+                        _playerManager.SendMessageToPlayer(player, welcomeMessage);
+
+                        if (!welcome.DisableSound && !string.IsNullOrWhiteSpace(_config.GlobalPlaySound))
+                        {
+                            _playerManager.PlaySoundToPlayer(player, _config.GlobalPlaySound);
+                        }
+                    }
                 }
-                else
+                catch (Exception ex)
                 {
-                    playerInfo = _playerManager.GetBasicPlayerInfo(player);
+                    Console.WriteLine($"[AutomaticAds] Error inside SendWelcomeToPlayer Async: {ex.Message}");
                 }
-
-                welcomeMessage = _messageFormatter.FormatWelcomeMessage(welcome, playerInfo, formattedPrefix);
-            }
-            else
-            {
-                var basicPlayerInfo = _playerManager.GetBasicPlayerInfo(player);
-                basicPlayerInfo.CountryCode = Utils.Constants.ErrorMessages.Unknown;
-                basicPlayerInfo.CountryName = Utils.Constants.ErrorMessages.Unknown;
-
-                welcomeMessage = _messageFormatter.FormatWelcomeMessage(welcome, basicPlayerInfo, formattedPrefix);
-            }
-
-            if (!string.IsNullOrWhiteSpace(welcomeMessage))
-            {
-                _playerManager.SendMessageToPlayer(player, welcomeMessage);
-
-                if (!welcome.DisableSound && !string.IsNullOrWhiteSpace(_config.GlobalPlaySound))
-                {
-                    _playerManager.PlaySoundToPlayer(player, _config.GlobalPlaySound);
-                }
-            }
+            });
         }
         catch (Exception ex)
         {
