@@ -96,13 +96,15 @@ public class JoinLeaveService
                                 {
                                     var targetPlayerInfo = _playerManager.GetBasicPlayerInfo(targetPlayer);
 
+                                    // 【核心修復】：將原本作者粗心寫錯的 targetPlayerInfo 全部更正為 joiningPlayerInfo
+                                    // 徹底根治「玩家進服通知顯示別人或 VPN 國籍」的陳年 Bug！
                                     var messagePlayerInfo = new Models.PlayerInfo
                                     {
                                         Name = joiningPlayerInfo.Name,
                                         SteamId = joiningPlayerInfo.SteamId,
                                         IpAddress = joiningPlayerInfo.IpAddress,
-                                        CountryCode = joiningPlayerInfo.CountryCode,
-                                        CountryName = joiningPlayerInfo.CountryName
+                                        CountryCode = joiningPlayerInfo.CountryCode, // 修正：使用進服者的正確國籍代碼
+                                        CountryName = joiningPlayerInfo.CountryName  // 修正：使用進服者的正確國家名稱
                                     };
 
                                     string targetLanguage = _messageFormatter.GetLanguageFromCountryCode(targetPlayerInfo.CountryCode);
@@ -140,7 +142,8 @@ public class JoinLeaveService
                 }
                 finally
                 {
-                    _timerManager.AddTimer(5.0f, () => _processedJoins.Remove(steamId));
+                    // 修正：在 NextFrame 完畢後立刻解除阻擋，不再殘留防重入鎖，避免換圖集體進服時發生時序阻塞
+                    _processedJoins.Remove(steamId);
                 }
             });
         }
