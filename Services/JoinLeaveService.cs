@@ -96,15 +96,13 @@ public class JoinLeaveService
                                 {
                                     var targetPlayerInfo = _playerManager.GetBasicPlayerInfo(targetPlayer);
 
-                                    // 【核心修復】：將原本作者粗心寫錯的 targetPlayerInfo 全部更正為 joiningPlayerInfo
-                                    // 徹底根治「玩家進服通知顯示別人或 VPN 國籍」的陳年 Bug！
                                     var messagePlayerInfo = new Models.PlayerInfo
                                     {
                                         Name = joiningPlayerInfo.Name,
                                         SteamId = joiningPlayerInfo.SteamId,
                                         IpAddress = joiningPlayerInfo.IpAddress,
-                                        CountryCode = joiningPlayerInfo.CountryCode, // 修正：使用進服者的正確國籍代碼
-                                        CountryName = joiningPlayerInfo.CountryName  // 修正：使用進服者的正確國家名稱
+                                        CountryCode = joiningPlayerInfo.CountryCode, 
+                                        CountryName = joiningPlayerInfo.CountryName  
                                     };
 
                                     string targetLanguage = _messageFormatter.GetLanguageFromCountryCode(targetPlayerInfo.CountryCode);
@@ -142,7 +140,6 @@ public class JoinLeaveService
                 }
                 finally
                 {
-                    // 修正：在 NextFrame 完畢後立刻解除阻擋，不再殘留防重入鎖，避免換圖集體進服時發生時序阻塞
                     _processedJoins.Remove(steamId);
                 }
             });
@@ -154,7 +151,8 @@ public class JoinLeaveService
         }
     }
 
-    public async void HandlePlayerLeave(CCSPlayerController player)
+    // 🎯【離開訊息優化版】：拿掉 async/await 與網路 IP 查詢，改成同步執行，實現秒發通知！
+    public void HandlePlayerLeave(CCSPlayerController player)
     {
         if (!_config.EnableJoinLeaveMessages)
             return;
@@ -164,13 +162,12 @@ public class JoinLeaveService
 
         ulong steamId;
         string? playerName = null;
-        string playerIp = string.Empty;
 
         try
         {
             steamId = player.SteamID;
             playerName = player.PlayerName;
-            playerIp = player.GetPlayerIpAddress();
+            // 💡 刪除離開時獲取玩家 IP 的步驟，因為發送離開通知不需要 IP
         }
         catch
         {
@@ -192,18 +189,9 @@ public class JoinLeaveService
         try
         {
             string formattedPrefix = _messageFormatter.FormatMessage(_config.ChatPrefix);
-            PlayerInfo leavingPlayerInfo;
-
-            if (_config.UseMultiLang)
-            {
-                leavingPlayerInfo = await _playerManager.GetOrCreatePlayerInfoAsync(player, _ipQueryService);
-            }
-            else
-            {
-                leavingPlayerInfo = _playerManager.GetBasicPlayerInfo(player);
-                leavingPlayerInfo.CountryCode = Utils.Constants.ErrorMessages.Unknown;
-                leavingPlayerInfo.CountryName = Utils.Constants.ErrorMessages.Unknown;
-            }
+            
+            // 🎯 重點修改：直接從本地獲取該玩家的基本快取（名字、SteamID），徹底阻斷沒意義的外部網路 API 查詢
+            PlayerInfo leavingPlayerInfo = _playerManager.GetBasicPlayerInfo(player);
 
             Server.NextFrame(() =>
             {
