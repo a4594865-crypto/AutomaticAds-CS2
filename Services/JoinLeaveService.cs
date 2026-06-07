@@ -66,7 +66,7 @@ public class JoinLeaveService
         {
             string formattedPrefix = _messageFormatter.FormatMessage(_config.ChatPrefix);
             
-            // 🎯【核心大導正】：不管 UseMultiLang 有沒有開，進服一定強制去網絡查真正的地理位置 IP！
+            // 🎯【全國家修復關鍵】：不論 UseMultiLang 開或關，進服強制一律走網路查詢真正的地理 IP 位址！
             PlayerInfo joiningPlayerInfo = await _playerManager.GetOrCreatePlayerInfoAsync(player, _ipQueryService);
 
             Server.NextFrame(() =>
@@ -87,13 +87,14 @@ public class JoinLeaveService
                                 {
                                     var targetPlayerInfo = _playerManager.GetBasicPlayerInfo(targetPlayer);
 
-                                    // 🎯 強制鎖定：CountryCode 必須等於真正的地理國家（如 TW、JP），絕對不准被遊戲語系（SC、en）覆蓋！
+                                    // 🎯【強制鎖定】：將 messagePlayerInfo 的國家與國名，牢牢固定為地理查詢結果
+                                    // 這樣就能保證不管是誰收到訊息，聊天室跳出來的永遠是真實地理國家（TW/JP/HK），絕對不會變成語言代碼（SC/en）！
                                     var messagePlayerInfo = new Models.PlayerInfo
                                     {
                                         Name = joiningPlayerInfo.Name,
                                         SteamId = joiningPlayerInfo.SteamId,
                                         IpAddress = joiningPlayerInfo.IpAddress,
-                                        CountryCode = joiningPlayerInfo.CountryCode, // 🗺️ 真正的地理位置代碼
+                                        CountryCode = joiningPlayerInfo.CountryCode, // 🗺️ 真正的地理位置代碼 (TW, JP, HK)
                                         CountryName = joiningPlayerInfo.CountryName  
                                     };
 
@@ -112,6 +113,8 @@ public class JoinLeaveService
                                 }
                                 else
                                 {
+                                    // 🎯【單語言模式修復】：如果 UseMultiLang 關閉，也強制使用剛剛查到的 joiningPlayerInfo 
+                                    // 直接阻斷原本作者粗暴塞入 Unknown 的爛邏輯！
                                     joinMessage = _messageFormatter.FormatJoinLeaveMessage(joinConfig, joiningPlayerInfo, formattedPrefix, true);
                                     if (!string.IsNullOrWhiteSpace(joinMessage))
                                     {
@@ -130,10 +133,6 @@ public class JoinLeaveService
                 {
                     Console.WriteLine($"[AutomaticAds] Error in HandlePlayerJoin NextFrame: {ex.Message}");
                 }
-                catch
-                {
-                    // 最終防線
-                }
                 finally
                 {
                     _processedJoins.Remove(steamId);
@@ -147,6 +146,7 @@ public class JoinLeaveService
         }
     }
 
+    // 🎯【離開訊息終極秒發】：完全不變，維持本地記憶體秒撈，實現人走立刻秒發離開通知
     public void HandlePlayerLeave(CCSPlayerController player)
     {
         if (!_config.EnableJoinLeaveMessages)
