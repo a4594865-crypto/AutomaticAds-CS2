@@ -65,18 +65,9 @@ public class JoinLeaveService
         try
         {
             string formattedPrefix = _messageFormatter.FormatMessage(_config.ChatPrefix);
-            PlayerInfo joiningPlayerInfo;
-
-            if (_config.UseMultiLang)
-            {
-                joiningPlayerInfo = await _playerManager.GetOrCreatePlayerInfoAsync(player, _ipQueryService);
-            }
-            else
-            {
-                joiningPlayerInfo = _playerManager.GetBasicPlayerInfo(player);
-                joiningPlayerInfo.CountryCode = Utils.Constants.ErrorMessages.Unknown;
-                joiningPlayerInfo.CountryName = Utils.Constants.ErrorMessages.Unknown;
-            }
+            
+            // 🎯【核心大導正】：不管 UseMultiLang 有沒有開，進服一定強制去網絡查真正的地理位置 IP！
+            PlayerInfo joiningPlayerInfo = await _playerManager.GetOrCreatePlayerInfoAsync(player, _ipQueryService);
 
             Server.NextFrame(() =>
             {
@@ -96,12 +87,13 @@ public class JoinLeaveService
                                 {
                                     var targetPlayerInfo = _playerManager.GetBasicPlayerInfo(targetPlayer);
 
+                                    // 🎯 強制鎖定：CountryCode 必須等於真正的地理國家（如 TW、JP），絕對不准被遊戲語系（SC、en）覆蓋！
                                     var messagePlayerInfo = new Models.PlayerInfo
                                     {
                                         Name = joiningPlayerInfo.Name,
                                         SteamId = joiningPlayerInfo.SteamId,
                                         IpAddress = joiningPlayerInfo.IpAddress,
-                                        CountryCode = joiningPlayerInfo.CountryCode, 
+                                        CountryCode = joiningPlayerInfo.CountryCode, // 🗺️ 真正的地理位置代碼
                                         CountryName = joiningPlayerInfo.CountryName  
                                     };
 
@@ -138,6 +130,10 @@ public class JoinLeaveService
                 {
                     Console.WriteLine($"[AutomaticAds] Error in HandlePlayerJoin NextFrame: {ex.Message}");
                 }
+                catch
+                {
+                    // 最終防線
+                }
                 finally
                 {
                     _processedJoins.Remove(steamId);
@@ -151,7 +147,6 @@ public class JoinLeaveService
         }
     }
 
-    // 🎯【離開訊息優化版】：拿掉 async/await 與網路 IP 查詢，改成同步執行，實現秒發通知！
     public void HandlePlayerLeave(CCSPlayerController player)
     {
         if (!_config.EnableJoinLeaveMessages)
@@ -167,7 +162,6 @@ public class JoinLeaveService
         {
             steamId = player.SteamID;
             playerName = player.PlayerName;
-            // 💡 刪除離開時獲取玩家 IP 的步驟，因為發送離開通知不需要 IP
         }
         catch
         {
@@ -189,8 +183,6 @@ public class JoinLeaveService
         try
         {
             string formattedPrefix = _messageFormatter.FormatMessage(_config.ChatPrefix);
-            
-            // 🎯 重點修改：直接從本地獲取該玩家的基本快取（名字、SteamID），徹底阻斷沒意義的外部網路 API 查詢
             PlayerInfo leavingPlayerInfo = _playerManager.GetBasicPlayerInfo(player);
 
             Server.NextFrame(() =>
